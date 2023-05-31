@@ -1,4 +1,4 @@
-FROM ruby:2.7.7-bullseye AS base
+FROM ruby:3.2.1-bullseye AS base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update \
@@ -31,7 +31,7 @@ RUN mkdir -p /opt/postal/app /opt/postal/config
 WORKDIR /opt/postal/app
 
 # Install bundler
-RUN gem install bundler -v 2.4.7 --no-doc
+RUN gem install bundler -v 2.4.9 --no-doc
 
 # Install the latest and active gem dependencies and re-run
 # the appropriate commands to handle installs.
@@ -56,8 +56,8 @@ CMD ["postal"]
 # ci target - use --target=ci to skip asset compilation
 FROM base AS ci
 
-# prod target - default if no --target option is given
-FROM base AS prod
+# full target - default if no --target option is given
+FROM base AS full
 
 RUN POSTAL_SKIP_CONFIG_CHECK=1 RAILS_GROUPS=assets bundle exec rake assets:precompile
 RUN touch /opt/postal/app/public/assets/.prebuilt

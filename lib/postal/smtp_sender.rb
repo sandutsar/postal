@@ -46,15 +46,15 @@ module Postal
               next
             end
 
-            smtp_client = Net::SMTP.new(hostname, port)
+            smtp_client = Net::SMTP.new(@remote_ip, port)
             smtp_client.open_timeout = Postal.config.smtp_client.open_timeout
             smtp_client.read_timeout = Postal.config.smtp_client.read_timeout
+            smtp_client.tls_hostname = hostname
 
             if @source_ip_address
               # Set the source IP as appropriate
               smtp_client.source_address = ip_type == :aaaa ? @source_ip_address.ipv6 : @source_ip_address.ipv4
             end
-
             case ssl_mode
             when "Auto"
               smtp_client.enable_starttls_auto(self.class.ssl_context_without_verify)
@@ -133,14 +133,18 @@ module Postal
       end
 
       begin
-        if message.bounce == 1
+        if message.bounce
           mail_from = ""
         elsif message.domain.return_path_status == "OK"
           mail_from = "#{message.server.token}@#{message.domain.return_path_domain}"
         else
           mail_from = "#{message.server.token}@#{Postal.config.dns.return_path}"
         end
-        raw_message = "Resent-Sender: #{mail_from}\r\n" + message.raw_message
+        if Postal.config.general.use_resent_sender_header
+            raw_message = "Resent-Sender: #{mail_from}\r\n" + message.raw_message
+        else
+            raw_message = message.raw_message
+        end
         tries = 0
         begin
           if @smtp_client.nil?
@@ -193,8 +197,8 @@ module Postal
         safe_rset
       rescue StandardError => e
         log "#{e.class}: #{e.message}"
-        if defined?(Raven)
-          Raven.capture_exception(e, extra: { log_id: @log_id, server_id: message.server.id, message_id: message.id })
+        if defined?(Sentry)
+          Sentry.capture_exception(e, extra: { log_id: @log_id, server_id: message.server.id, message_id: message.id })
         end
         result.type = "SoftFail"
         result.retry = true
